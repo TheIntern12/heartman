@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Heart-Man</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#06000d;
+    --wall:#2330d6;
+    --wall-glow:#5566ff;
+    --pellet:#ffd6e6;
+    --heart:#ff3b6b;
+    --text:#ffe1ec;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:radial-gradient(circle at 50% 20%, #160024 0%, #06000d 70%);
+    color:var(--text);
+    font-family:'Press Start 2P',monospace;
+    display:flex;flex-direction:column;align-items:center;
+    min-height:100vh;padding:18px 12px 40px;gap:14px;
+    -webkit-user-select:none;user-select:none;
+    overflow-x:hidden;
+  }
+  h1{
+    font-size:clamp(16px,5vw,26px);
+    color:var(--heart);
+    text-shadow:0 0 12px rgba(255,59,107,.7);
+    letter-spacing:1px;text-align:center;
+  }
+  h1 span{color:#ffd24a;text-shadow:0 0 12px rgba(255,210,74,.6)}
+  .hud{
+    display:flex;gap:20px;font-size:11px;flex-wrap:wrap;
+    justify-content:center;align-items:center;color:#ffd6e6;
+  }
+  .hud b{color:#ffd24a}
+  .lives{color:var(--heart);letter-spacing:3px;font-size:14px}
+  #wrap{position:relative}
+  canvas{
+    background:#06000d;
+    border-radius:10px;
+    box-shadow:0 0 0 3px #1a1140, 0 0 40px -6px rgba(85,102,255,.5);
+    image-rendering:pixelated;
+    max-width:96vw;height:auto;touch-action:none;
+  }
+  .overlay{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:18px;text-align:center;
+    background:rgba(6,0,13,.86);border-radius:10px;padding:20px;
+  }
+  .overlay.hide{display:none}
+  .overlay p{font-size:11px;line-height:1.9;color:#ffd6e6;max-width:30ch}
+  .overlay .big{font-size:18px;color:var(--heart);text-shadow:0 0 12px rgba(255,59,107,.7)}
+  .overlay .win{color:#ffd24a;text-shadow:0 0 12px rgba(255,210,74,.7)}
+  button{
+    font-family:'Press Start 2P',monospace;font-size:12px;
+    background:var(--heart);color:#fff;border:none;border-radius:8px;
+    padding:14px 22px;cursor:pointer;box-shadow:0 0 18px -2px rgba(255,59,107,.8);
+    transition:transform .12s ease;
+  }
+  button:hover{transform:scale(1.05)}
+  button:focus-visible{outline:3px solid #ffd24a;outline-offset:3px}
+  .keys{font-size:9px;color:#8a7d9e;line-height:1.8;text-align:center}
+  /* touch dpad */
+  #dpad{display:none;gap:8px;margin-top:6px;
+    grid-template-columns:repeat(3,56px);grid-template-rows:repeat(3,56px);
+    justify-content:center}
+  #dpad button{font-size:18px;padding:0;background:#1a1140;color:#ffd6e6;
+    box-shadow:0 0 0 2px #2a2060}
+  #dpad .up{grid-area:1/2}#dpad .left{grid-area:2/1}
+  #dpad .right{grid-area:2/3}#dpad .down{grid-area:3/2}
+  @media (hover:none) and (pointer:coarse){#dpad{display:grid}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+  <h1>HEART<span>-</span>MAN</h1>
+  <div class="hud">
+    <div>SCORE <b id="score">0</b></div>
+    <div>LEVEL <b id="level">1</b></div>
+    <div class="lives" id="lives">♥♥♥</div>
+  </div>
+
+  <div id="wrap">
+    <canvas id="game" width="448" height="496"></canvas>
+
+    <div class="overlay" id="startScreen">
+      <div class="big">♥ HEART-MAN ♥</div>
+      <p>Eat every pellet. Grab a big <span style="color:#ffd24a">♥</span> to chase the ghosts. Don't get caught.</p>
+      <button id="startBtn">START</button>
+      <div class="keys">Arrow keys / WASD to move<br>On phone, use the buttons below</div>
+    </div>
+
+    <div class="overlay hide" id="endScreen">
+      <div class="big" id="endTitle">GAME OVER</div>
+      <p id="endMsg"></p>
+      <button id="againBtn">PLAY AGAIN</button>
+    </div>
+  </div>
+
+  <div id="dpad">
+    <button class="up" data-dir="up" aria-label="up">▲</button>
+    <button class="left" data-dir="left" aria-label="left">◀</button>
+    <button class="right" data-dir="right" aria-label="right">▶</button>
+    <button class="down" data-dir="down" aria-label="down">▼</button>
+  </div>
+
+<script>
+/* ===================== Heart-Man =====================
+   Classic Pac-Man rules, heart skin.
+   Grid is 28 wide x 31 tall, tile = 16px. Canvas 448x496.
+=====================================================*/
+const TILE=16, COLS=28, ROWS=31;
+const cv=document.getElementById('game');
+const ctx=cv.getContext('2d');
+
+// Maze legend:
+// # wall, . pellet, o power pellet, ' ' empty, - ghost door, T tunnel space
+// P player start, G ghost house interior
+const RAW=[
+"############################",
+"#............##............#",
+"#.####.#####.##.#####.####.#",
+"#o####.#####.##.#####.####o#",
+"#.####.#####.##.#####.####.#",
+"#..........................#",
+"#.####.##.########.##.####.#",
+"#.####.##.########.##.####.#",
+"#......##....##....##......#",
+"######.##### ## #####.######",
+"######.##### ## #####.######",
+"######.##          ##.######",
+"######.## ###--### ##.######",
+"######.## #      # ##.######",
+"      .   #      #   .      ",
+"######.## #      # ##.######",
+"######.## ######## ##.######",
+"######.##          ##.######",
+"######.## ######## ##.######",
+"######.## ######## ##.######",
+"#............##............#",
+"#.####.#####.##.#####.####.#",
+"#.####.#####.##.#####.####.#",
+"#o..##.......P .......##..o#",
+"###.##.##.########.##.##.###",
+"###.##.##.########.##.##.###",
+"#......##....##....##......#",
+"#.##########.##.##########.#",
+"#.##########.##.##########.#",
+"#..........................#",
+"############################"
+];
+
+let grid, pelletsLeft, score, lives, level, mode, animFrame;
+let player, ghosts, frightTimer, started=false;
+
+function buildGrid(){
+  grid=[];pelletsLeft=0;
+  for(let r=0;r<ROWS;r++){
+    grid[r]=[];
+    for(let c=0;c<COLS;c++){
+      let ch=RAW[r][c];
+      if(ch==='.'||ch==='o') pelletsLeft++;
+      grid[r][c]=ch;
+    }
+  }
+}
+
+const DIRS={up:{x:0,y:-1},down:{x:0,y:1},left:{x:-1,y:0},right:{x:1,y:0},none:{x:0,y:0}};
+
+function resetActors(){
+  player={c:13.5,r:23,dir:'left',next:'left',speed:0.13,mouth:0};
+  // four ghosts with classic-ish colors, re-skinned but recognizable
+  ghosts=[
+    {c:13.5,r:14,color:'#ff5277',dir:'left',scatter:{c:25,r:0},state:'scatter',speed:0.105,name:'red',home:{c:13.5,r:14}},
+    {c:11.5,r:14,color:'#ffb8d6',dir:'up',scatter:{c:2,r:0},state:'house',speed:0.10,name:'pink',home:{c:11.5,r:14},release:30},
+    {c:13.5,r:14,color:'#7ad6ff',dir:'up',scatter:{c:27,r:30},state:'house',speed:0.10,name:'cyan',home:{c:13.5,r:14},release:90},
+    {c:15.5,r:14,color:'#ffc24a',dir:'up',scatter:{c:0,r:30},state:'house',speed:0.10,name:'orange',home:{c:15.5,r:14},release:150}
+  ];
+  frightTimer=0;
+}
+
+function startGame(){
+  score=0;lives=3;level=1;
+  buildGrid();resetActors();
+  started=true;tick=0;
+  updateHud();
+  document.getElementById('startScreen').classList.add('hide');
+  document.getElementById('endScreen').classList.add('hide');
+  if(animFrame)cancelAnimationFrame(animFrame);
+  loop();
+}
+
+function nextLevel(){
+  level++;buildGrid();resetActors();
+  ghosts.forEach(g=>{ if(g.release) g.release*=0.9; });
+  updateHud();
+}
+
+function loseLife(){
+  lives--;updateHud();
+  if(lives<=0){ endGame(false); return; }
+  resetActors();
+  // brief pause
+  paused=true;
+  setTimeout(()=>{paused=false;},900);
+}
+
+function endGame(win){
+  started=false;
+  if(animFrame)cancelAnimationFrame(animFrame);
+  const es=document.getElementById('endScreen');
+  document.getElementById('endTitle').textContent=win?'YOU WIN ♥':'GAME OVER';
+  document.getElementById('endTitle').className=win?'big win':'big';
+  document.getElementById('endMsg').textContent=
+    (win?'Every heart, devoured. ':'Caught by the ghosts. ')+'Final score '+score+'.';
+  es.classList.remove('hide');
+}
+
+/* ---------- movement helpers ---------- */
+function isWall(r,c){
+  c=((c%COLS)+COLS)%COLS;
+  if(r<0||r>=ROWS) return true;
+  const ch=grid[r][c];
+  return ch==='#'||ch==='-';
+}
+function canMove(r,c,dir){
+  const d=DIRS[dir];
+  // check the tile in that direction at the entity's current cell
+  return !isWall(Math.round(r+d.y), Math.round(c+d.x));
+}
+function atCenter(v){return Math.abs(v-Math.round(v))<0.06;}
+
+/* ---------- player ---------- */
+function movePlayer(){
+  // try to turn toward queued direction at tile centers
+  if(atCenter(player.c)&&atCenter(player.r)){
+    player.c=Math.round(player.c);player.r=Math.round(player.r);
+    if(player.next!==player.dir && canMove(player.r,player.c,player.next)){
+      player.dir=player.next;
+    }
+    if(!canMove(player.r,player.c,player.dir)){
+      // stop at wall
+      return eatHere();
+    }
+  }
+  const d=DIRS[player.dir];
+  player.c+=d.x*player.speed;
+  player.r+=d.y*player.speed;
+  // tunnel wrap
+  if(player.c< -0.5) player.c=COLS-0.5;
+  if(player.c> COLS-0.5) player.c=-0.5;
+  player.mouth=(player.mouth+0.18)%1;
+  eatHere();
+}
+function eatHere(){
+  const r=Math.round(player.r), c=((Math.round(player.c)%COLS)+COLS)%COLS;
+  if(r<0||r>=ROWS) return;
+  const ch=grid[r][c];
+  if(ch==='.'){grid[r][c]=' ';score+=10;pelletsLeft--;updateHud();}
+  else if(ch==='o'){
+    grid[r][c]=' ';score+=50;pelletsLeft--;
+    frightTimer=420; // ~7s at 60fps
+    ghosts.forEach(g=>{ if(g.state!=='eaten'&&g.state!=='house') g.state='fright'; });
+    updateHud();
+  }
+  if(pelletsLeft<=0){
+    if(level>=3){ endGame(true); }
+    else { nextLevel(); }
+  }
+}
+
+/* ---------- ghosts ---------- */
+function ghostTarget(g){
+  if(g.state==='fright') return null; // random
+  if(g.state==='eaten') return {c:13.5,r:14};
+  // chase / scatter targets
+  if(g.state==='scatter') return g.scatter;
+  // chase
+  switch(g.name){
+    case 'red': return {c:player.c,r:player.r};
+    case 'pink': {const d=DIRS[player.dir];return {c:player.c+d.x*4,r:player.r+d.y*4};}
+    case 'cyan': {
+      const d=DIRS[player.dir];const px=player.c+d.x*2,py=player.r+d.y*2;
+      const red=ghosts[0];return {c:px+(px-red.c),r:py+(py-red.r)};
+    }
+    case 'orange': {
+      const dist=Math.hypot(player.c-g.c,player.r-g.r);
+      return dist>8?{c:player.c,r:player.r}:g.scatter;
+    }
+  }
+  return {c:player.c,r:player.r};
+}
+
+function moveGhost(g){
+  // house release logic
+  if(g.state==='house'){
+    if(g.release!==undefined && tick> g.release){ g.state='leaving'; }
+    else { return; }
+  }
+  if(g.state==='leaving'){
+    // move toward door then into maze
+    const door={c:13.5,r:11};
+    g.c+= Math.sign(door.c-g.c)*0.06;
+    g.r+= (g.r>door.r? -0.08:0.08);
+    if(Math.abs(g.r-door.r)<0.1){ g.r=door.r;g.c=13.5;g.state= frightTimer>0?'fright':'scatter';g.dir='left'; }
+    return;
+  }
+
+  const spd = g.state==='eaten'?0.20 : g.state==='fright'?0.07 : g.speed+(level-1)*0.012;
+
+  if(atCenter(g.c)&&atCenter(g.r)){
+    g.c=Math.round(g.c);g.r=Math.round(g.r);
+    // eaten ghost reaching home
+    if(g.state==='eaten' && Math.abs(g.r-14)<0.6 && Math.abs(g.c-13.5)<1.2){
+      g.state='house'; g.release=tick+60; g.r=14; g.dir='up'; return;
+    }
+    // choose direction at intersection
+    const opts=['up','down','left','right'].filter(dir=>{
+      if(opposite(dir)===g.dir) return false; // no reversing
+      return canMove(g.r,g.c,dir);
+    });
+    let choices=opts.length?opts:['up','down','left','right'].filter(dir=>canMove(g.r,g.c,dir));
+    const target=ghostTarget(g);
+    if(!target){
+      // frightened: random
+      g.dir=choices[(Math.random()*choices.length)|0]||g.dir;
+    }else{
+      // pick option minimizing distance to target
+      let best=choices[0],bestD=1e9;
+      for(const dir of choices){
+        const d=DIRS[dir];
+        const nc=g.c+d.x,nr=g.r+d.y;
+        const dd=(nc-target.c)**2+(nr-target.r)**2;
+        if(dd<bestD){bestD=dd;best=dir;}
+      }
+      g.dir=best;
+    }
+  }
+  const d=DIRS[g.dir];
+  g.c+=d.x*spd;g.r+=d.y*spd;
+  if(g.c<-0.5)g.c=COLS-0.5;
+  if(g.c>COLS-0.5)g.c=-0.5;
+}
+function opposite(dir){return {up:'down',down:'up',left:'right',right:'left'}[dir];}
+
+function checkCollisions(){
+  for(const g of ghosts){
+    if(g.state==='house'||g.state==='leaving'||g.state==='eaten') continue;
+    if(Math.hypot(g.c-player.c,g.r-player.r)<0.6){
+      if(g.state==='fright'){
+        g.state='eaten';score+=200;updateHud();
+      }else{
+        loseLife();return;
+      }
+    }
+  }
+}
+
+/* ---------- rendering ---------- */
+function drawWall(r,c){
+  const x=c*TILE,y=r*TILE;
+  ctx.fillStyle='#1822b8';
+  ctx.fillRect(x+2,y+2,TILE-4,TILE-4);
+  ctx.fillStyle='#3a4bff';
+  ctx.fillRect(x+4,y+4,TILE-8,TILE-8);
+}
+function drawHeart(x,y,size,color){
+  ctx.save();ctx.translate(x,y);ctx.scale(size/16,size/16);
+  ctx.fillStyle=color;ctx.beginPath();
+  ctx.moveTo(0,4);
+  ctx.bezierCurveTo(0,-1,-7,-4,-7,2);
+  ctx.bezierCurveTo(-7,7,0,11,0,15);
+  ctx.bezierCurveTo(0,11,7,7,7,2);
+  ctx.bezierCurveTo(7,-4,0,-1,0,4);
+  ctx.closePath();ctx.fill();ctx.restore();
+}
+
+function render(){
+  ctx.clearRect(0,0,cv.width,cv.height);
+  // maze
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      const ch=grid[r][c];const x=c*TILE,y=r*TILE;
+      if(ch==='#'){drawWall(r,c);}
+      else if(ch==='-'){ctx.fillStyle='#ff8fc1';ctx.fillRect(x+1,y+6,TILE-2,4);}
+      else if(ch==='.'){ctx.fillStyle='#ffd6e6';ctx.beginPath();ctx.arc(x+TILE/2,y+TILE/2,2,0,7);ctx.fill();}
+      else if(ch==='o'){
+        const pulse=2.5+Math.sin(tick*0.2)*1.5;
+        drawHeart(x+TILE/2,y+TILE/2-pulse-2,pulse*3.2,'#ffd24a');
+      }
+    }
+  }
+  // player heart, beating
+  const beat=1+Math.sin(tick*0.4)*0.08;
+  drawHeart(player.c*TILE+TILE/2, player.r*TILE+TILE/2, TILE*1.15*beat, '#ff3b6b');
+  // tiny shine
+  ctx.fillStyle='rgba(255,255,255,.6)';
+  ctx.beginPath();ctx.arc(player.c*TILE+TILE/2-3,player.r*TILE+TILE/2-3,1.6,0,7);ctx.fill();
+
+  // ghosts
+  for(const g of ghosts){
+    const x=g.c*TILE+TILE/2,y=g.r*TILE+TILE/2;
+    let col=g.color;
+    if(g.state==='fright'){col=frightTimer<120 && (Math.floor(tick/8)%2)?'#ffffff':'#3a4bff';}
+    if(g.state==='eaten'){drawEyes(x,y,g.dir);continue;}
+    drawGhost(x,y,col,g.dir,g.state==='fright');
+  }
+}
+function drawGhost(x,y,color,dir,fright){
+  ctx.save();ctx.translate(x,y);
+  ctx.fillStyle=color;
+  ctx.beginPath();
+  ctx.arc(0,-1,7,Math.PI,0);
+  ctx.lineTo(7,7);
+  // wavy skirt
+  for(let i=0;i<3;i++){
+    ctx.lineTo(7-(i*2+1)*7/3, 7-(i%2?3:0));
+    ctx.lineTo(7-(i*2+2)*7/3, 7);
+  }
+  ctx.lineTo(-7,7);ctx.closePath();ctx.fill();
+  // eyes
+  if(fright){
+    ctx.fillStyle='#ffd6e6';
+    ctx.fillRect(-4,-2,2,2);ctx.fillRect(2,-2,2,2);
+    ctx.strokeStyle='#ffd6e6';ctx.beginPath();ctx.moveTo(-4,3);ctx.lineTo(4,3);ctx.stroke();
+  }else{
+    const d=DIRS[dir];
+    ctx.fillStyle='#fff';
+    ctx.beginPath();ctx.arc(-3,-1,2.4,0,7);ctx.arc(3,-1,2.4,0,7);ctx.fill();
+    ctx.fillStyle='#1a1a4a';
+    ctx.beginPath();ctx.arc(-3+d.x,-1+d.y,1.2,0,7);ctx.arc(3+d.x,-1+d.y,1.2,0,7);ctx.fill();
+  }
+  ctx.restore();
+}
+function drawEyes(x,y,dir){
+  ctx.save();ctx.translate(x,y);const d=DIRS[dir];
+  ctx.fillStyle='#fff';
+  ctx.beginPath();ctx.arc(-3,-1,2.4,0,7);ctx.arc(3,-1,2.4,0,7);ctx.fill();
+  ctx.fillStyle='#1a1a4a';
+  ctx.beginPath();ctx.arc(-3+d.x,-1+d.y,1.2,0,7);ctx.arc(3+d.x,-1+d.y,1.2,0,7);ctx.fill();
+  ctx.restore();
+}
+
+/* ---------- loop ---------- */
+let tick=0, paused=false;
+function loop(){
+  if(!started)return;
+  animFrame=requestAnimationFrame(loop);
+  tick++;
+  if(!paused){
+    movePlayer();
+    ghosts.forEach(moveGhost);
+    if(frightTimer>0){frightTimer--;if(frightTimer===0){ghosts.forEach(g=>{if(g.state==='fright')g.state='scatter';});}}
+    // periodic scatter/chase swing for active ghosts
+    if(frightTimer===0){
+      const phase=Math.floor(tick/420)%2; // alternate ~7s
+      ghosts.forEach(g=>{
+        if(g.state==='scatter'||g.state==='chase'){
+          g.state=phase===0?'scatter':'chase';
+        }
+      });
+    }
+    checkCollisions();
+  }
+  render();
+  updateHud();
+}
+
+function updateHud(){
+  document.getElementById('score').textContent=score;
+  document.getElementById('level').textContent=level;
+  document.getElementById('lives').textContent='♥'.repeat(Math.max(0,lives));
+}
+
+/* ---------- input ---------- */
+const keymap={
+  ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',
+  w:'up',s:'down',a:'left',d:'right',W:'up',S:'down',A:'left',D:'right'
+};
+window.addEventListener('keydown',e=>{
+  const dir=keymap[e.key];
+  if(dir){e.preventDefault();if(player)player.next=dir;}
+});
+document.querySelectorAll('#dpad button').forEach(b=>{
+  const set=()=>{if(player)player.next=b.dataset.dir;};
+  b.addEventListener('touchstart',e=>{e.preventDefault();set();},{passive:false});
+  b.addEventListener('mousedown',set);
+});
+// swipe on canvas
+let sx,sy;
+cv.addEventListener('touchstart',e=>{const t=e.touches[0];sx=t.clientX;sy=t.clientY;},{passive:true});
+cv.addEventListener('touchend',e=>{
+  if(sx==null)return;const t=e.changedTouches[0];
+  const dx=t.clientX-sx,dy=t.clientY-sy;
+  if(Math.abs(dx)>Math.abs(dy)) player.next=dx>0?'right':'left';
+  else player.next=dy>0?'down':'up';
+  sx=sy=null;
+},{passive:true});
+
+document.getElementById('startBtn').onclick=startGame;
+document.getElementById('againBtn').onclick=startGame;
+
+// draw an idle frame behind the start screen
+buildGrid();resetActors();render();
+</script>
+</body>
+</html>
