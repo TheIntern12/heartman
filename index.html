@@ -55,6 +55,7 @@
   }
   .overlay.hide{display:none}
   .overlay p{font-size:11px;line-height:1.9;color:#ffd6e6;max-width:30ch}
+  .overlay p b{color:#ffd24a}
   .overlay .big{font-size:18px;color:var(--heart);text-shadow:0 0 12px rgba(255,59,107,.7)}
   .overlay .win{color:#ffd24a;text-shadow:0 0 12px rgba(255,210,74,.7)}
   button{
@@ -215,10 +216,61 @@ function endGame(win){
   started=false;
   if(animFrame)cancelAnimationFrame(animFrame);
   const es=document.getElementById('endScreen');
-  document.getElementById('endTitle').textContent=win?'YOU WIN ♥':'GAME OVER';
-  document.getElementById('endTitle').className=win?'big win':'big';
-  document.getElementById('endMsg').textContent=
-    (win?'Every heart, devoured. ':'Caught by the ghosts. ')+'Final score '+score+'.';
+  const title=document.getElementById('endTitle');
+  const msg=document.getElementById('endMsg');
+  const againBtn=document.getElementById('againBtn');
+
+  if(score>2500){
+    // earned the love note
+    title.textContent='♥ FOR YOU ♥';
+    title.className='big win';
+    msg.innerHTML=
+      'You scored <b>'+score+'</b>.<br><br>'+
+      'You cleared every heart in your way, the same way you cleared every wall around mine. '+
+      'I think about you more than I should admit. The curve of your smile, the way you say my name, '+
+      'the warmth of you when the lights go low and the world finally goes quiet. '+
+      'You are the one I want closest, the one I reach for first, the one I keep choosing.<br><br>'+
+      'Come find me when you finish. I have something far more special waiting than any game.<br><br>'+
+      '<span style="color:#ffd24a">All of me is yours. ♥</span>';
+    againBtn.textContent='PLAY AGAIN';
+  }else{
+    title.textContent=win?'SO CLOSE ♥':'GAME OVER';
+    title.className='big';
+    msg.innerHTML=
+      'You scored <b>'+score+'</b>.<br><br>'+
+      'Cross <b style="color:#ffd24a">2500</b> and a love note unlocks just for you. '+
+      'One more run, my love. I am worth chasing.';
+    againBtn.textContent='TRY AGAIN';
+  }
+  es.classList.remove('hide');
+}
+
+/* ---------- between-level love message ---------- */
+function showLevelLove(){
+  const es=document.getElementById('endScreen');
+  const title=document.getElementById('endTitle');
+  const msg=document.getElementById('endMsg');
+  const againBtn=document.getElementById('againBtn');
+  // freeze the game while the message shows
+  started=false;
+  if(animFrame){cancelAnimationFrame(animFrame);animFrame=0;}
+  title.textContent='LEVEL 1 CLEAR ♥';
+  title.className='big win';
+  msg.innerHTML=
+    'You scored <b>'+score+'</b> already.<br><br>'+
+    'One level left, my love. Cross <b style="color:#ffd24a">2500</b> on Level 2 '+
+    'and something special is waiting for you at the end. '+
+    'Keep going. I am right here, cheering for you, wanting you to win.';
+  againBtn.textContent='ON TO LEVEL 2 ♥';
+  // override the button just for this screen
+  againBtn.onclick=()=>{
+    es.classList.add('hide');
+    againBtn.onclick=startGame; // restore default
+    nextLevel();
+    paused=false;
+    started=true;
+    loop();
+  };
   es.classList.remove('hide');
 }
 
@@ -270,8 +322,8 @@ function eatHere(){
     updateHud();
   }
   if(pelletsLeft<=0){
-    if(level>=3){ endGame(true); }
-    else { nextLevel(); }
+    if(level>=2){ endGame(true); }
+    else { showLevelLove(); }
   }
 }
 
