@@ -221,31 +221,32 @@ function endGame(win){
   const againBtn=document.getElementById('againBtn');
 
   if(score>2500){
-    // earned the love note
+    // earned the note
     title.textContent='♥ FOR YOU ♥';
     title.className='big win';
     msg.innerHTML=
       'You scored <b>'+score+'</b>.<br><br>'+
-      'You cleared every heart in your way, the same way you cleared every wall around mine. '+
-      'I think about you more than I should admit. The curve of your smile, the way you say my name, '+
-      'the warmth of you when the lights go low and the world finally goes quiet. '+
-      'You are the one I want closest, the one I reach for first, the one I keep choosing.<br><br>'+
-      'Come find me when you finish. I have something far more special waiting than any game.<br><br>'+
-      '<span style="color:#ffd24a">All of me is yours. ♥</span>';
+      'You cleared every heart in your way, the same way you clear every thought in my head the second you walk in. '+
+      'I keep thinking about you. The heat of your skin, the way your breath catches, '+
+      'the look you give me right before everything goes quiet and it is only us. '+
+      'I want my hands on you, my mouth on yours, all the patience burned out of me. '+
+      'You are the ache I do not want to fix and the want I do not want to cool down.<br><br>'+
+      'So come find me. Now. The game is over and I am not done with you.<br><br>'+
+      '<span style="color:#ffd24a">Every part of me is yours tonight. ♥</span>';
     againBtn.textContent='PLAY AGAIN';
   }else{
     title.textContent=win?'SO CLOSE ♥':'GAME OVER';
     title.className='big';
     msg.innerHTML=
       'You scored <b>'+score+'</b>.<br><br>'+
-      'Cross <b style="color:#ffd24a">2500</b> and a love note unlocks just for you. '+
-      'One more run, my love. I am worth chasing.';
+      'Cross <b style="color:#ffd24a">2500</b> and a note unlocks just for you, the kind worth chasing for. '+
+      'One more run. I promise I am worth it.';
     againBtn.textContent='TRY AGAIN';
   }
   es.classList.remove('hide');
 }
 
-/* ---------- between-level love message ---------- */
+/* ---------- between-level message ---------- */
 function showLevelLove(){
   const es=document.getElementById('endScreen');
   const title=document.getElementById('endTitle');
@@ -258,9 +259,9 @@ function showLevelLove(){
   title.className='big win';
   msg.innerHTML=
     'You scored <b>'+score+'</b> already.<br><br>'+
-    'One level left, my love. Cross <b style="color:#ffd24a">2500</b> on Level 2 '+
-    'and something special is waiting for you at the end. '+
-    'Keep going. I am right here, cheering for you, wanting you to win.';
+    'One level left. Cross <b style="color:#ffd24a">2500</b> on Level 2 '+
+    'and what is waiting at the end is going to make your pulse race for a very different reason. '+
+    'Keep going. I am right here, wanting you, counting on you to finish.';
   againBtn.textContent='ON TO LEVEL 2 ♥';
   // override the button just for this screen
   againBtn.onclick=()=>{
